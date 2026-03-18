@@ -5,7 +5,7 @@ const db = require("./database")
 
 const app = express()
 
-// SCRIPT LOADER (users use this)
+// PUBLIC SCRIPT LOADER
 app.get("/load",(req,res)=>{
 
 const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress
@@ -29,82 +29,7 @@ res.send(script)
 
 
 // OWNER DASHBOARD
-app.get("/owner/2",(req,res)=>{
-
-res.send(`
-<html>
-
-<head>
-
-<title>Badge Loader Owner</title>
-
-<style>
-
-body{
-background:#020617;
-color:white;
-font-family:Arial;
-display:flex;
-justify-content:center;
-align-items:center;
-height:100vh;
-}
-
-.box{
-background:#1e293b;
-padding:40px;
-border-radius:12px;
-text-align:center;
-width:400px;
-box-shadow:0 0 30px rgba(0,0,0,0.5);
-}
-
-h1{
-color:#38bdf8;
-}
-
-button{
-padding:12px 20px;
-border:none;
-border-radius:8px;
-background:#38bdf8;
-color:black;
-font-weight:bold;
-cursor:pointer;
-margin-top:20px;
-width:100%;
-}
-
-</style>
-
-</head>
-
-<body>
-
-<div class="box">
-
-<h1>Badge Loader</h1>
-
-<p>Owner Dashboard</p>
-
-<button onclick="window.location='/stats'">
-Open Analytics
-</button>
-
-</div>
-
-</body>
-
-</html>
-`)
-
-})
-
-
-
-
-// STATS PAGE
-app.get("/stats",(req,res)=>{
+app.get("/dashboard/owner",(req,res)=>{
 
 db.all("SELECT * FROM executions",(err,rows)=>{
 
@@ -128,12 +53,11 @@ logsHTML+=`
 })
 
 res.send(`
-
 <html>
 
 <head>
 
-<title>Badge Loader Stats</title>
+<title>Badge Loader Dashboard</title>
 
 <style>
 
@@ -152,7 +76,7 @@ color:#38bdf8;
 background:#1e293b;
 padding:20px;
 border-radius:10px;
-margin-bottom:30px;
+margin-bottom:25px;
 }
 
 table{
@@ -169,6 +93,14 @@ th{
 background:#0f172a;
 }
 
+.loaderbox{
+background:#0f172a;
+padding:10px;
+border-radius:6px;
+font-family:monospace;
+margin-top:10px;
+}
+
 button{
 padding:10px 18px;
 border:none;
@@ -176,7 +108,7 @@ border-radius:6px;
 background:#38bdf8;
 color:black;
 cursor:pointer;
-margin-bottom:20px;
+margin-top:10px;
 }
 
 </style>
@@ -185,15 +117,28 @@ margin-bottom:20px;
 
 <body>
 
-<button onclick="window.location='/owner/2'">
-Back to Owner Panel
-</button>
-
-<h1>Badge Loader Analytics</h1>
+<h1>Badge Loader Owner Dashboard</h1>
 
 <div class="card">
-Total Executions: ${rows.length}
+<h2>Total Executions</h2>
+${rows.length}
 </div>
+
+
+<div class="card">
+
+<h2>Loader Script</h2>
+
+<p>Copy this loader to distribute your script</p>
+
+<div class="loaderbox" id="loadertext">
+loadstring(game:HttpGet("https://badge-loader-production.up.railway.app/load"))()
+</div>
+
+<button onclick="copyLoader()">Copy Loader</button>
+
+</div>
+
 
 <div class="card">
 
@@ -213,16 +158,35 @@ ${logsHTML}
 
 </div>
 
+
+<script>
+
+function copyLoader(){
+
+const text =
+'loadstring(game:HttpGet("https://badge-loader-production.up.railway.app/load"))()'
+
+navigator.clipboard.writeText(text)
+
+alert("Loader copied!")
+
+}
+
+// auto refresh every 5 seconds for live executions
+setInterval(()=>{
+location.reload()
+},5000)
+
+</script>
+
 </body>
 
 </html>
-
 `)
 
 })
 
 })
-
 
 
 app.listen(3000,()=>{
