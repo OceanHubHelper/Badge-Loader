@@ -13,7 +13,7 @@ app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "../dashboard/index.html"))
 })
 
-// loader endpoint
+// loader endpoint (returns script normally)
 app.get("/load", (req, res) => {
 
     const ip =
@@ -36,15 +36,8 @@ app.get("/load", (req, res) => {
         "utf8"
     )
 
-    // encode script so people can't easily see it
-    const encoded = Buffer.from(script).toString("base64")
-
-    // send protected loader
-    res.send(`
-local encoded="${encoded}"
-local decoded=game:GetService("HttpService"):Base64Decode(encoded)
-loadstring(decoded)()
-`)
+    // send the script
+    res.send(script)
 })
 
 // analytics API
