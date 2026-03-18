@@ -1,0 +1,9 @@
+{
+  "name": "badge-loader",
+  "version": "1.0.0",
+  "description": "Badge Loader Script API",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
