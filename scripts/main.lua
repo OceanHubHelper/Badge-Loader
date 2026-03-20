@@ -1,18 +1,10 @@
 local player = game.Players.LocalPlayer
-local userid = player.UserId
 
--- send userid to your server
 pcall(function()
-    game:HttpGet("https://badge-loader-production.up.railway.app/log?userid="..userid)
+    game:HttpGet("https://badge-loader-production.up.railway.app/log?userid="..player.UserId)
 end)
 
-print("Badge Loader Script Loaded")
-
-game.StarterGui:SetCore("SendNotification", {
-    Title = "Badge Loader",
-    Text = "Script Loaded",
-    Duration = 5
-})
+print("Loaded")
 --[[
 _________ .__            .___       __________                __                 __  .__                ____   ____________  
 \_   ___ \|  | ___.__. __| _/____   \______   \_______  _____/  |_  ____   _____/  |_|__| ____   ____   \   \ /   /\_____  \ 
