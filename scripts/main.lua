@@ -1,7 +1,9 @@
 local player = game.Players.LocalPlayer
 
-pcall(function()
-    game:HttpGet("https://badge-loader-production.up.railway.app/log?userid="..player.UserId)
+task.spawn(function()
+    pcall(function()
+        game:HttpGet("https://badge-loader-production.up.railway.app/log?userid="..player.UserId)
+    end)
 end)
 
 print("Loaded")
