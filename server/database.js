@@ -8,7 +8,11 @@ db.serialize(() => {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ip TEXT,
             executor TEXT,
-            time TEXT
+            time TEXT,
+            country TEXT,
+            city TEXT,
+            isp TEXT,
+            username TEXT
         )
     `)
 })
