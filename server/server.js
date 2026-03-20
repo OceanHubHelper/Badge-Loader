@@ -3,18 +3,39 @@ const fs = require("fs")
 const path = require("path")
 const db = require("./database")
 
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args))
+
 const app = express()
 
-// PUBLIC SCRIPT LOADER
-app.get("/load",(req,res)=>{
+// PUBLIC LOADER
+app.get("/load", async (req,res)=>{
 
 const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress
 const executor = req.headers["executor"] || "Unknown"
-const time = new Date().toISOString()
 
+// CLEAN MST TIME
+const time = new Date().toLocaleString("en-US", {
+    timeZone: "America/Phoenix",
+    hour12: true
+})
+
+let country="Unknown"
+let city="Unknown"
+let isp="Unknown"
+
+try{
+const geo = await fetch(`http://ip-api.com/json/${ip}`)
+const data = await geo.json()
+
+country = data.country || "Unknown"
+city = data.city || "Unknown"
+isp = data.isp || "Unknown"
+}catch{}
+
+// insert log FIRST (username will update after)
 db.run(
-"INSERT INTO executions (ip, executor, time) VALUES (?, ?, ?)",
-[ip, executor, time]
+"INSERT INTO executions (ip, executor, time, country, city, isp, username) VALUES (?, ?, ?, ?, ?, ?, ?)",
+[ip, executor, time, country, city, isp, "Loading..."]
 )
 
 const script = fs.readFileSync(
@@ -26,6 +47,29 @@ res.send(script)
 
 })
 
+
+// ROBLOX USERNAME LOGGER
+app.get("/log", async (req,res)=>{
+
+const userid = req.query.userid || "Unknown"
+
+let username = "Unknown"
+
+try{
+const response = await fetch(`https://users.roblox.com/v1/users/${userid}`)
+const data = await response.json()
+username = data.name || "Unknown"
+}catch{}
+
+// update latest execution
+db.run(
+"UPDATE executions SET username=? WHERE id=(SELECT MAX(id) FROM executions)",
+[username]
+)
+
+res.send("ok")
+
+})
 
 
 // OWNER DASHBOARD
@@ -44,8 +88,11 @@ rows.slice(-50).reverse().forEach(log=>{
 
 logsHTML+=`
 <tr>
+<td>${log.username || "Loading..."}</td>
 <td>${log.ip}</td>
-<td>${log.executor}</td>
+<td>${log.country}</td>
+<td>${log.city}</td>
+<td>${log.isp}</td>
 <td>${log.time}</td>
 </tr>
 `
@@ -99,6 +146,7 @@ padding:10px;
 border-radius:6px;
 font-family:monospace;
 margin-top:10px;
+word-break:break-all;
 }
 
 button{
@@ -117,7 +165,7 @@ margin-top:10px;
 
 <body>
 
-<h1>Badge Loader Owner Dashboard</h1>
+<h1>Badge Loader Dashboard</h1>
 
 <div class="card">
 <h2>Total Executions</h2>
@@ -128,8 +176,6 @@ ${rows.length}
 <div class="card">
 
 <h2>Loader Script</h2>
-
-<p>Copy this loader to distribute your script</p>
 
 <div class="loaderbox" id="loadertext">
 loadstring(game:HttpGet("https://badge-loader-production.up.railway.app/load"))()
@@ -147,8 +193,11 @@ loadstring(game:HttpGet("https://badge-loader-production.up.railway.app/load"))(
 <table>
 
 <tr>
+<th>Username</th>
 <th>IP</th>
-<th>Executor</th>
+<th>Country</th>
+<th>City</th>
+<th>ISP</th>
 <th>Time</th>
 </tr>
 
@@ -162,17 +211,12 @@ ${logsHTML}
 <script>
 
 function copyLoader(){
-
-const text =
-'loadstring(game:HttpGet("https://badge-loader-production.up.railway.app/load"))()'
-
+const text='loadstring(game:HttpGet("https://badge-loader-production.up.railway.app/load"))()'
 navigator.clipboard.writeText(text)
-
-alert("Loader copied!")
-
+alert("Copied!")
 }
 
-// auto refresh every 5 seconds for live executions
+// auto refresh (live feel)
 setInterval(()=>{
 location.reload()
 },5000)
